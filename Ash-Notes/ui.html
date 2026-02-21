@@ -251,6 +251,29 @@ function parseNotes(rawText, titleOverride) {
     }
   });
 
+  // If no top-level bullets were found, treat everything after the first line
+  // as one implicit section so it still gets split across slides correctly.
+  if (sections.length === 0) {
+    var bodyLines = [];
+    var skippedTitle = false;
+    for (var k = 0; k < lines.length; k++) {
+      if (!skippedTitle && lines[k].trim() !== '') {
+        skippedTitle = true; // first non-empty line is the title, skip it
+        continue;
+      }
+      if (skippedTitle) {
+        bodyLines.push(lines[k]);
+      }
+    }
+    // Trim leading blank lines
+    while (bodyLines.length > 0 && bodyLines[0].trim() === '') {
+      bodyLines.shift();
+    }
+    if (bodyLines.length > 0) {
+      sections.push({ title: rawTitle, body: bodyLines });
+    }
+  }
+
   var topicAreas = sections.map(function(s) { return s.title; });
 
   return {
