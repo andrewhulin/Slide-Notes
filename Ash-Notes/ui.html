@@ -1,17 +1,293 @@
-<h2>Shape Creator</h2>
-<p>Count: <input id="count" type="number" value="5"></p>
-<button id="create">Create</button>
-<button id="cancel">Cancel</button>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 16px;
+    font-size: 13px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+
+  /* Panel visibility */
+  #panel-shapes, #panel-notes { display: none; }
+  #panel-shapes.active, #panel-notes.active { display: block; }
+
+  /* Shared form elements */
+  h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #666;
+    margin: 14px 0 5px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input[type="text"],
+  input[type="number"] {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 7px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+  input[type="text"]:focus,
+  input[type="number"]:focus { border-color: #0d99ff; }
+
+  textarea {
+    width: 100%;
+    height: 200px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    resize: vertical;
+    outline: none;
+    line-height: 1.5;
+  }
+  textarea:focus { border-color: #0d99ff; }
+
+  /* File upload row */
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border: 1px dashed #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    background: #fafafa;
+  }
+  .upload-row:hover { border-color: #0d99ff; background: #f0f8ff; }
+  .upload-row input[type="file"] { display: none; }
+  .upload-icon { font-size: 16px; }
+  .upload-label { font-size: 12px; color: #555; flex: 1; }
+  .file-name { font-size: 11px; color: #0d99ff; font-style: italic; }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  button {
+    flex: 1;
+    padding: 9px 0;
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.85; }
+  button:active { opacity: 0.7; }
+  .btn-primary { background: #0d99ff; color: white; }
+  .btn-primary:disabled { background: #a0d0f0; cursor: not-allowed; opacity: 1; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+
+  /* Error */
+  .error {
+    display: none;
+    color: #c0392b;
+    font-size: 11px;
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: #fdecea;
+    border-radius: 4px;
+  }
+  .error.visible { display: block; }
+
+  /* Format hint */
+  .hint {
+    font-size: 11px;
+    color: #888;
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .hint code {
+    background: #f5f5f5;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+
+<!-- Panel A: existing shapes UI for figma / figjam / buzz -->
+<div id="panel-shapes">
+  <h2>Shape Creator</h2>
+  <label for="count">Count</label>
+  <input id="count" type="number" value="5">
+  <div class="btn-row">
+    <button class="btn-primary" id="create">Create</button>
+    <button class="btn-secondary" id="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Panel B: notes-to-slides UI for the Slides editor -->
+<div id="panel-notes">
+  <h2>Notes to Slides</h2>
+
+  <label for="title-override">Interview title <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional override)</span></label>
+  <input type="text" id="title-override" placeholder="Auto-detected from first line of notes">
+
+  <label for="notes-text">Paste interview notes</label>
+  <textarea
+    id="notes-text"
+    placeholder="9:45am, 2.20.26  Intro: background + why she started using Ash&#10;* Top-level bullets become individual slides&#10;   * Indented bullets are preserved as sub-points&#10;      * All original text is kept word-for-word"
+  ></textarea>
+  <div class="hint">
+    First non-bullet line → slide deck title &nbsp;|&nbsp;
+    <code>* bullet</code> at column 0 → new slide
+  </div>
+
+  <label>Or upload a .md / .txt file</label>
+  <label class="upload-row" for="file-input">
+    <input type="file" id="file-input" accept=".md,.txt">
+    <span class="upload-icon">&#128196;</span>
+    <span class="upload-label">Click to choose a file</span>
+    <span class="file-name" id="file-name-hint"></span>
+  </label>
+
+  <div class="error" id="notes-error">Please paste some notes or upload a file first.</div>
+
+  <div class="btn-row">
+    <button class="btn-primary" id="notes-create">Generate Slides</button>
+    <button class="btn-secondary" id="notes-cancel">Cancel</button>
+  </div>
+</div>
+
 <script>
 
-document.getElementById('create').onclick = () => {
-  const textbox = document.getElementById('count');
-  const count = parseInt(textbox.value, 10);
-  parent.postMessage({ pluginMessage: { type: 'create-shapes', count } }, '*')
+// ---- Panel switching based on init message from code.ts ----
+window.onmessage = function(event) {
+  var msg = event.data && event.data.pluginMessage;
+  if (!msg || msg.type !== 'init') return;
+
+  if (msg.editorType === 'slides') {
+    document.getElementById('panel-notes').classList.add('active');
+  } else {
+    document.getElementById('panel-shapes').classList.add('active');
+  }
+};
+
+// ---- Shapes panel (existing behavior, unchanged) ----
+document.getElementById('create').onclick = function() {
+  var textbox = document.getElementById('count');
+  var count = parseInt(textbox.value, 10);
+  parent.postMessage({ pluginMessage: { type: 'create-shapes', count: count } }, '*');
+};
+
+document.getElementById('cancel').onclick = function() {
+  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+};
+
+// ---- File upload: read .md/.txt into textarea ----
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('file-name-hint').textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    document.getElementById('notes-text').value = evt.target.result;
+  };
+  reader.readAsText(file);
+});
+
+// ---- Notes parsing (runs entirely in browser context) ----
+function parseNotes(rawText, titleOverride) {
+  var lines = rawText.split('\n');
+  var headerLines = [];
+  var i = 0;
+
+  // Phase 1: collect header lines (everything before first "* " at column 0)
+  while (i < lines.length && !/^\* /.test(lines[i])) {
+    if (lines[i].trim() !== '') {
+      headerLines.push(lines[i].trim());
+    }
+    i++;
+  }
+
+  var rawTitle = (titleOverride && titleOverride.trim())
+    ? titleOverride.trim()
+    : (headerLines.length > 0 ? headerLines[0] : 'Interview Notes');
+
+  // Phase 2: split into sections at each top-level bullet (* at column 0)
+  var sections = [];
+  var currentSection = null;
+
+  while (i < lines.length) {
+    var line = lines[i];
+    var topLevelMatch = line.match(/^\* (.+)/);
+
+    if (topLevelMatch) {
+      if (currentSection !== null) {
+        sections.push(currentSection);
+      }
+      currentSection = { title: topLevelMatch[1].trim(), body: [] };
+    } else if (currentSection !== null) {
+      currentSection.body.push(line);
+    }
+    i++;
+  }
+  if (currentSection !== null) {
+    sections.push(currentSection);
+  }
+
+  // Trim trailing blank lines from each section body
+  sections.forEach(function(s) {
+    while (s.body.length > 0 && s.body[s.body.length - 1].trim() === '') {
+      s.body.pop();
+    }
+  });
+
+  var topicAreas = sections.map(function(s) { return s.title; });
+
+  return {
+    rawTitle: rawTitle,
+    headerLines: headerLines,
+    topicAreas: topicAreas,
+    sections: sections
+  };
 }
 
-document.getElementById('cancel').onclick = () => {
-  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*')
-}
+// ---- Generate Slides submit ----
+document.getElementById('notes-create').onclick = function() {
+  var rawText = document.getElementById('notes-text').value.trim();
+  var errorEl = document.getElementById('notes-error');
+
+  if (!rawText) {
+    errorEl.classList.add('visible');
+    return;
+  }
+  errorEl.classList.remove('visible');
+
+  var titleOverride = document.getElementById('title-override').value;
+  var parsed = parseNotes(rawText, titleOverride);
+
+  parent.postMessage({
+    pluginMessage: { type: 'create-notes-slides', data: parsed }
+  }, '*');
+
+  var btn = document.getElementById('notes-create');
+  btn.disabled = true;
+  btn.textContent = 'Generating\u2026';
+};
+
+document.getElementById('notes-cancel').onclick = function() {
+  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+};
 
 </script>
+</body>
+</html>
