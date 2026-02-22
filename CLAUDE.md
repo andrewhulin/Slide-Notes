@@ -41,12 +41,14 @@ npm run lint       # Check code with ESLint (.ts/.tsx files)
 npm run lint:fix   # Auto-fix lint issues
 ```
 
+**Note on git:** The working directory for `git add` / `git commit` is `Ash-Notes/` (where the shell lands after `cd Ash-Notes`), so use relative paths like `git add code.ts`, not `git add Ash-Notes/code.ts`.
+
 ## Architecture Notes
 
-- **`code.ts`** is the single entry point. It branches on `figma.editorType` to handle each editor:
-  - `figma` — creates colored rectangles, positions them horizontally
+- **`code.ts`** is the single entry point. It branches on `figma.editorType`:
+  - `figma` — creates colored rectangles, positioned horizontally
   - `figjam` — creates rounded rectangles with connectors between them
-  - `slides` — shows a notes-to-slides UI (520×600). User pastes/uploads raw notes. The UI parses them with `parseNotes()` into a `ParsedNotes` object and sends `{ type: 'create-notes-slides', data }` to the plugin. `code.ts` then: loads Inter fonts, creates a dark-themed cover slide (title + date context + topic list), then one content slide per `NoteSection`. Sections too long for one slide are split into `(cont'd)` continuations.
+  - `slides` — shows a notes-to-slides UI (520×600). User pastes/uploads raw notes. The UI parses them with `parseNotes()` into a `ParsedNotes` object and sends `{ type: 'create-notes-slides', data }` to the plugin. `code.ts` then: extracts fonts from the existing deck, detects per-slide text colors by luminance, creates a cover slide (title + subtitle + topic list), then one or more content slides per `NoteSection`. Sections too long for one slide are split into `(cont'd)` continuations.
   - `buzz` — creates frames via the buzz API
 - **`ui.html`** has two panels: `#panel-shapes` (shown for figma/figjam/buzz) and `#panel-notes` (shown for slides). Both start hidden; `code.ts` sends `{ type: 'init', editorType }` immediately after `figma.showUI()`, and `window.onmessage` in the UI activates the correct panel. Communication is via `parent.postMessage()` / `figma.ui.onmessage`.
 - The plugin closes itself after creating objects (`figma.closePlugin()`).
@@ -66,11 +68,71 @@ interface ParsedNotes {
   sections: NoteSection[];
 }
 
+// Only fonts are extracted from the deck — colors are determined per-slide
+// by luminance (see textColorsForSlide). Fills are never set on new slides.
+interface ThemeFonts {
+  headingFont: FontName;
+  bodyFont: FontName;
+}
+
 type PluginMessage =
   | { type: 'init' }
   | { type: 'create-shapes'; count: number }
   | { type: 'create-notes-slides'; data: ParsedNotes }
   | { type: 'cancel' };
+```
+
+## Slide Layout Constants (code.ts — slides branch)
+
+All slides are 1920×1080px. The layout values below were calibrated to prevent
+text-node overlap when titles or body text wraps to multiple lines.
+
+### Cover slide
+
+| Element        | x   | y   | width        | font size             |
+|----------------|-----|-----|--------------|-----------------------|
+| Title          | 160 | 200 | `SLIDE_W-320` | 72px; 52 if >60 chars; 44 if >90 chars |
+| Subtitle       | 160 | 460 | `SLIDE_W-320` | 36px                  |
+| Topics label   | 160 | 580 | 400          | 30px                  |
+| Topics list    | 160 | 630 | `SLIDE_W-320` | 28px (up to 8 topics) |
+
+**Why y=460 for subtitle:** a 72px title at y=200 with 160% line height
+(115px/line) wraps to at most 2 lines → ends at y≈430. The 30px gap to y=460
+prevents overlap. Scaled-down fonts (52px / 44px) end even lower so the gap
+is larger.
+
+### Content slides (createContentSlides)
+
+| Constant        | Value | Rationale |
+|-----------------|-------|-----------|
+| `TITLE_Y`       | 80    | Small top margin |
+| `BODY_START_Y`  | 320   | 52px title at 160% (83px/line) × 3 lines = 249px; 80+249=329 → 320 allows up to ~3-line section titles without overlap |
+| `CHARS_PER_LINE`| 78    | Wrap estimate for body text at 32px on 1760px-wide column |
+| `LINES_MAX`     | 12    | Available body height = 1080−320−80 = 680px; 680÷51px/line ≈ 13; 12 gives comfortable bottom margin |
+
+Content title: 52px heading font. Body: 32px body font, 160% line height.
+
+## Key Helper Functions (code.ts)
+
+```typescript
+// Place a text node on a slide. autoResize defaults to 'HEIGHT'.
+addText(parent, content, { x, y, w, size, font, color, autoResize? })
+
+// Split a body string into page-sized chunks of at most maxLines wrapped lines.
+splitIntoChunks(text, charsPerLine, maxLines): string[]
+
+// Extract heading/body FontName from the first populated slide in the deck.
+// Falls back to Inter Bold / Inter Regular if no slides exist.
+extractFontsFromDeck(): ThemeFonts
+
+// Compute luminance of a slide's first solid fill; returns true if dark.
+isBackgroundDark(slide): boolean
+
+// Return { heading: RGB, body: RGB } appropriate for the slide's background.
+textColorsForSlide(slide): { heading: RGB; body: RGB }
+
+// Create all slides (with cont'd splits) for one NoteSection.
+createContentSlides(section, slideW, slideH, margin, fonts): SlideNode[]
 ```
 
 ## Notes Input Format (Slides editor)
@@ -105,3 +167,7 @@ First non-bullet line(s)   →  slide title / header block (date, context, etc.)
 - The Figma plugin typings version is pinned to `*` (latest) which can cause breaking changes on fresh installs.
 - The slides branch opens the UI at `{ width: 520, height: 600 }`; other branches use the default size. This is intentional — the notes form needs more space.
 - `async/await` in `code.ts` requires `"es2017"` in `tsconfig.json`'s `lib` array. Do not remove it.
+- **Never set `slide.fills` on generated slides.** Figma Slides templates use variable-bound fills (e.g. "Color 2" from a theme). Setting `slide.fills` to a literal color overrides those bindings and breaks the template appearance. Call `figma.createSlide()` and leave fills untouched — the template background is inherited automatically.
+- **Text colors must be computed from the slide background, not hardcoded.** Use `textColorsForSlide(slide)` which reads `slide.fills[0]` and computes ITU-R BT.601 luminance to decide dark vs. light text. This handles both light and dark template themes.
+- **Fixed Y positions don't account for text wrapping.** When adjusting `BODY_START_Y` or cover-slide element positions, calculate the worst-case wrapped height: `fontSize × lineHeightMultiplier × maxLines + startY`. The current values were set to handle up to 3-line section titles and 2-line cover titles. If font sizes change, recalculate these positions.
+- **`LINES_MAX` must be consistent with `BODY_START_Y`.** If `BODY_START_Y` increases, reduce `LINES_MAX` so body text doesn't overflow the 1080px slide height. Formula: `LINES_MAX = floor((SLIDE_H - BODY_START_Y - bottomMargin) / lineHeightPx)`.
