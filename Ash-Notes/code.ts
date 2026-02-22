@@ -17,12 +17,9 @@ interface ParsedNotes {
   sections: NoteSection[];
 }
 
-interface ThemeConfig {
-  slideFills: ReadonlyArray<Paint>;
+interface ThemeFonts {
   headingFont: FontName;
-  headingColor: RGB;
   bodyFont: FontName;
-  bodyColor: RGB;
 }
 
 type PluginMessage =
@@ -47,13 +44,10 @@ function findTextNodes(node: SceneNode): TextNode[] {
   return [];
 }
 
-function extractThemeFromDeck(): ThemeConfig {
-  const DEFAULT: ThemeConfig = {
-    slideFills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
+function extractFontsFromDeck(): ThemeFonts {
+  const DEFAULT: ThemeFonts = {
     headingFont: { family: 'Inter', style: 'Bold' },
-    headingColor: { r: 0.102, g: 0.102, b: 0.102 },
     bodyFont: { family: 'Inter', style: 'Regular' },
-    bodyColor: { r: 0.2, g: 0.2, b: 0.2 },
   };
 
   try {
@@ -62,13 +56,6 @@ function extractThemeFromDeck(): ThemeConfig {
       for (const slide of row) {
         if (slide.children.length === 0) continue;
 
-        // Extract background fills from the slide
-        const rawFills = slide.fills;
-        const slideFills: ReadonlyArray<Paint> =
-          rawFills !== figma.mixed && rawFills.length > 0
-            ? rawFills
-            : DEFAULT.slideFills;
-
         // Collect all text nodes and sort largest → smallest
         const textNodes: TextNode[] = [];
         for (const child of slide.children) {
@@ -76,9 +63,7 @@ function extractThemeFromDeck(): ThemeConfig {
             textNodes.push(t);
           }
         }
-        if (textNodes.length === 0) {
-          return { ...DEFAULT, slideFills };
-        }
+        if (textNodes.length === 0) continue;
 
         const sorted = [...textNodes].sort(
           (a, b) =>
@@ -89,44 +74,48 @@ function extractThemeFromDeck(): ThemeConfig {
         const headingNode = sorted[0];
         const bodyNode = sorted[sorted.length - 1];
 
-        // Heading font
         const headingFont: FontName =
           headingNode.fontName !== figma.mixed
             ? (headingNode.fontName as FontName)
             : DEFAULT.headingFont;
 
-        // Heading color
-        const hFills = headingNode.fills;
-        const headingColor: RGB =
-          hFills !== figma.mixed &&
-          hFills.length > 0 &&
-          hFills[0].type === 'SOLID'
-            ? (hFills[0] as SolidPaint).color
-            : DEFAULT.headingColor;
-
-        // Body font
         const bodyFont: FontName =
           bodyNode.fontName !== figma.mixed
             ? (bodyNode.fontName as FontName)
             : DEFAULT.bodyFont;
 
-        // Body color
-        const bFills = bodyNode.fills;
-        const bodyColor: RGB =
-          bFills !== figma.mixed &&
-          bFills.length > 0 &&
-          bFills[0].type === 'SOLID'
-            ? (bFills[0] as SolidPaint).color
-            : DEFAULT.bodyColor;
-
-        return { slideFills, headingFont, headingColor, bodyFont, bodyColor };
+        return { headingFont, bodyFont };
       }
     }
   } catch (_e) {
-    // Fall through to defaults if anything fails
+    // Fall through to defaults
   }
 
   return DEFAULT;
+}
+
+// Determine if a slide's background is dark based on its resolved fills
+function isBackgroundDark(slide: SlideNode): boolean {
+  const fills = slide.fills;
+  if (fills === figma.mixed || fills.length === 0) return false;
+  const first = fills[0];
+  if (first.type !== 'SOLID') return false;
+  const { r, g, b } = first.color;
+  // Weighted luminance (ITU-R BT.601)
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 0.5;
+}
+
+function textColorsForSlide(slide: SlideNode): { heading: RGB; body: RGB } {
+  if (isBackgroundDark(slide)) {
+    return {
+      heading: { r: 1, g: 1, b: 1 },
+      body: { r: 0.95, g: 0.95, b: 0.95 },
+    };
+  }
+  return {
+    heading: { r: 0.1, g: 0.1, b: 0.1 },
+    body: { r: 0.2, g: 0.2, b: 0.2 },
+  };
 }
 
 // ---- Helpers for slide creation ----
@@ -182,18 +171,16 @@ function splitIntoChunks(text: string, charsPerLine: number, maxLines: number): 
 function createContentSlides(
   section: NoteSection,
   slideW: number,
-  slideH: number,
+  _slideH: number,
   margin: number,
-  theme: ThemeConfig
+  fonts: ThemeFonts
 ): SlideNode[] {
   const results: SlideNode[] = [];
-  const TITLE_Y = 50;
-  const BODY_START_Y = 160;
-  // Conservative line budget — leaves ~80px bottom margin
-  const BODY_MAX_H = slideH - BODY_START_Y - 80;
-  const CHARS_PER_LINE = 88;
-  const LINE_H = 40; // fontSize=28 * 1.4 line height
-  const LINES_MAX = Math.floor(BODY_MAX_H / LINE_H) - 2; // -2 for safety margin
+  const TITLE_Y = 60;
+  const BODY_START_Y = 180;
+  // Body at 32px, 160% leading ≈ 51px/line; available height ≈ 820px
+  const CHARS_PER_LINE = 78;
+  const LINES_MAX = 15;
 
   const bodyText = section.body.join('\n').trim();
   const chunks = splitIntoChunks(bodyText, CHARS_PER_LINE, LINES_MAX);
@@ -202,14 +189,16 @@ function createContentSlides(
     const slide = figma.createSlide();
     results.push(slide);
 
-    // Apply theme background
-    slide.fills = theme.slideFills as Paint[];
+    // Don't set slide.fills — let the template handle backgrounds
+
+    // Pick text colors that contrast with this slide's template background
+    const colors = textColorsForSlide(slide);
 
     // Section title
     const titleLabel = idx === 0 ? section.title : `${section.title} (cont'd)`;
     addText(slide, titleLabel, {
       x: margin, y: TITLE_Y, w: slideW - margin * 2,
-      size: 44, font: theme.headingFont, color: theme.headingColor,
+      size: 52, font: fonts.headingFont, color: colors.heading,
       autoResize: 'HEIGHT',
     });
 
@@ -217,10 +206,10 @@ function createContentSlides(
     if (chunk.trim().length > 0) {
       const bodyNode = addText(slide, chunk, {
         x: margin, y: BODY_START_Y, w: slideW - margin * 2,
-        size: 28, font: theme.bodyFont, color: theme.bodyColor,
+        size: 32, font: fonts.bodyFont, color: colors.body,
         autoResize: 'HEIGHT',
       });
-      bodyNode.lineHeight = { value: 140, unit: 'PERCENT' };
+      bodyNode.lineHeight = { value: 160, unit: 'PERCENT' };
     }
   });
 
@@ -304,16 +293,16 @@ if (figma.editorType === 'slides') {
     if (msg.type === 'create-notes-slides') {
       const parsed: ParsedNotes = msg.data;
 
-      // Extract colors, fonts, and background from existing slides
-      const theme = extractThemeFromDeck();
+      // Extract fonts from existing slides in the deck
+      const fonts = extractFontsFromDeck();
 
-      // Load all needed fonts (deduplicate if heading == body font)
-      const fontsToLoad: FontName[] = [theme.headingFont];
+      // Load all needed fonts (deduplicate if heading == body)
+      const fontsToLoad: FontName[] = [fonts.headingFont];
       if (
-        theme.bodyFont.family !== theme.headingFont.family ||
-        theme.bodyFont.style !== theme.headingFont.style
+        fonts.bodyFont.family !== fonts.headingFont.family ||
+        fonts.bodyFont.style !== fonts.headingFont.style
       ) {
-        fontsToLoad.push(theme.bodyFont);
+        fontsToLoad.push(fonts.bodyFont);
       }
       await Promise.all(fontsToLoad.map(f => figma.loadFontAsync(f)));
 
@@ -326,54 +315,54 @@ if (figma.editorType === 'slides') {
       const coverSlide = figma.createSlide();
       allSlides.push(coverSlide);
 
-      // Apply theme background
-      coverSlide.fills = theme.slideFills as Paint[];
+      // Don't set fills — let the template handle the background
+      const coverColors = textColorsForSlide(coverSlide);
 
       // Title — scale font size based on length
-      let titleFontSize = 64;
+      let titleFontSize = 72;
       if (parsed.rawTitle.length > 60) titleFontSize = 52;
-      if (parsed.rawTitle.length > 90) titleFontSize = 40;
+      if (parsed.rawTitle.length > 90) titleFontSize = 44;
 
       addText(coverSlide, parsed.rawTitle, {
         x: 160, y: 280, w: SLIDE_W - 320,
-        size: titleFontSize, font: theme.headingFont, color: theme.headingColor,
+        size: titleFontSize, font: fonts.headingFont, color: coverColors.heading,
         autoResize: 'HEIGHT',
       });
 
-      // Subtitle — cap at 2 header lines to avoid overflow
+      // Subtitle — cap at 2 header lines
       if (parsed.headerLines.length > 1) {
         const subtitleText = parsed.headerLines.slice(1, 3).join(' | ');
         addText(coverSlide, subtitleText, {
-          x: 160, y: 400, w: SLIDE_W - 320,
-          size: 30, font: theme.bodyFont, color: theme.bodyColor,
+          x: 160, y: 420, w: SLIDE_W - 320,
+          size: 36, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'HEIGHT',
         });
       }
 
-      // Topic list — cap at 8 to avoid overflow
+      // Topic list — cap at 8
       if (parsed.topicAreas.length > 0) {
         const visibleTopics = parsed.topicAreas.slice(0, 8);
         const hiddenCount = parsed.topicAreas.length - visibleTopics.length;
         let topicText = visibleTopics
-          .map((t, i) => `${i + 1}.  ${t.length > 90 ? t.slice(0, 87) + '...' : t}`)
+          .map((t, i) => `${i + 1}.  ${t.length > 80 ? t.slice(0, 77) + '...' : t}`)
           .join('\n');
         if (hiddenCount > 0) topicText += `\n    … and ${hiddenCount} more`;
 
         addText(coverSlide, 'Key topics:', {
-          x: 160, y: 510, w: 400,
-          size: 26, font: theme.bodyFont, color: theme.bodyColor,
+          x: 160, y: 530, w: 400,
+          size: 30, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'WIDTH_AND_HEIGHT',
         });
         addText(coverSlide, topicText, {
-          x: 160, y: 555, w: SLIDE_W - 320,
-          size: 24, font: theme.bodyFont, color: theme.bodyColor,
+          x: 160, y: 580, w: SLIDE_W - 320,
+          size: 28, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'HEIGHT',
         });
       }
 
       // ---- Content slides (one per section, with overflow splitting) ----
       for (const section of parsed.sections) {
-        const contentSlides = createContentSlides(section, SLIDE_W, SLIDE_H, MARGIN, theme);
+        const contentSlides = createContentSlides(section, SLIDE_W, SLIDE_H, MARGIN, fonts);
         allSlides.push(...contentSlides);
       }
 
