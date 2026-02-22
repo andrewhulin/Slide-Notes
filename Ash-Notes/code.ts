@@ -176,11 +176,11 @@ function createContentSlides(
   fonts: ThemeFonts
 ): SlideNode[] {
   const results: SlideNode[] = [];
-  const TITLE_Y = 60;
-  const BODY_START_Y = 180;
-  // Body at 32px, 160% leading ≈ 51px/line; available height ≈ 820px
+  const TITLE_Y = 80;
+  const BODY_START_Y = 320;
+  // Body at 32px, 160% leading ≈ 51px/line; available height (1080-320-80) ≈ 680px → 13 lines
   const CHARS_PER_LINE = 78;
-  const LINES_MAX = 15;
+  const LINES_MAX = 12;
 
   const bodyText = section.body.join('\n').trim();
   const chunks = splitIntoChunks(bodyText, CHARS_PER_LINE, LINES_MAX);
@@ -324,16 +324,18 @@ if (figma.editorType === 'slides') {
       if (parsed.rawTitle.length > 90) titleFontSize = 44;
 
       addText(coverSlide, parsed.rawTitle, {
-        x: 160, y: 280, w: SLIDE_W - 320,
+        x: 160, y: 200, w: SLIDE_W - 320,
         size: titleFontSize, font: fonts.headingFont, color: coverColors.heading,
         autoResize: 'HEIGHT',
       });
 
       // Subtitle — cap at 2 header lines
+      // y=460: title at y=200 with 72px font (115px/line) wraps to max 2 lines → ends at y≈430;
+      // for scaled-down fonts (52px or 44px) 2-line titles end no later than y≈366.
       if (parsed.headerLines.length > 1) {
         const subtitleText = parsed.headerLines.slice(1, 3).join(' | ');
         addText(coverSlide, subtitleText, {
-          x: 160, y: 420, w: SLIDE_W - 320,
+          x: 160, y: 460, w: SLIDE_W - 320,
           size: 36, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'HEIGHT',
         });
@@ -349,12 +351,12 @@ if (figma.editorType === 'slides') {
         if (hiddenCount > 0) topicText += `\n    … and ${hiddenCount} more`;
 
         addText(coverSlide, 'Key topics:', {
-          x: 160, y: 530, w: 400,
+          x: 160, y: 580, w: 400,
           size: 30, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'WIDTH_AND_HEIGHT',
         });
         addText(coverSlide, topicText, {
-          x: 160, y: 580, w: SLIDE_W - 320,
+          x: 160, y: 630, w: SLIDE_W - 320,
           size: 28, font: fonts.bodyFont, color: coverColors.body,
           autoResize: 'HEIGHT',
         });
