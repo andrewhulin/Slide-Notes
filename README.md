@@ -6,13 +6,15 @@ A Figma plugin that turns raw UX interview notes into a formatted slide deck. Pa
 
 ## Installation (2 steps, no coding required)
 
+> **Important:** You need the [Figma desktop app](https://www.figma.com/downloads/) to install local plugins. This will not work in the browser version of Figma. If you don't have it yet, download it from [figma.com/downloads](https://www.figma.com/downloads/) and sign in with your Figma account.
+
 ### 1. Download
 
 Click the green **Code** button at the top of this page, then click **Download ZIP**. Unzip it anywhere on your computer.
 
 ### 2. Add to Figma
 
-1. Open [figma.com](https://www.figma.com) and open any **Slides** file (or create a new one).
+1. Open the **Figma desktop app** and open any **Slides** file (or create a new one).
 2. In the menu bar, go to **Plugins → Development → Import plugin from manifest…**
 3. In the file picker that appears, navigate into the folder you unzipped, then into the **Ash-Notes** folder, select **manifest.json**, and click **Open**.
 
