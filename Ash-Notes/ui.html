@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     margin: 0;
-    padding: 16px;
+    padding: 20px;
     font-size: 13px;
-    color: #1a1a1a;
+    color: #2a2018;
     background: #fff;
   }
 
@@ -17,90 +18,312 @@
   #panel-shapes, #panel-notes { display: none; }
   #panel-shapes.active, #panel-notes.active { display: block; }
 
-  /* Shared form elements */
-  h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+  /* ---- Header ---- */
+  .plugin-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+  }
+  .plugin-header h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: -0.01em;
+  }
+  .plugin-header .badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #EE5B20;
+    color: #fff;
+  }
+  .plugin-header .version {
+    margin-left: auto;
+    font-size: 11px;
+    color: #bbb;
+    font-weight: 400;
+  }
+
+  /* ---- Section groups ---- */
+  .section {
+    margin-bottom: 24px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #EE5B20;
+    margin-bottom: 14px;
+  }
+
+  /* ---- Form elements ---- */
   label {
     display: block;
     font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #666;
-    margin: 12px 0 4px;
+    color: #777;
+    margin-bottom: 5px;
   }
-  label:first-of-type { margin-top: 0; }
+  .optional-tag {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #aaa;
+    font-size: 10px;
+  }
+  .field-group {
+    margin-bottom: 16px;
+  }
+  .field-group:last-child {
+    margin-bottom: 0;
+  }
+
   input[type="text"],
   input[type="number"] {
     width: 100%;
     border: 1px solid #ddd;
-    border-radius: 5px;
-    padding: 7px 10px;
+    border-radius: 6px;
+    padding: 8px 11px;
     font-size: 13px;
+    color: #2a2018;
     outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #fff;
   }
   input[type="text"]:focus,
-  input[type="number"]:focus { border-color: #0d99ff; }
+  input[type="number"]:focus {
+    border-color: #EE5B20;
+    box-shadow: 0 0 0 2px rgba(238, 91, 32, 0.12);
+  }
+  input[type="text"]::placeholder { color: #bbb; }
 
+  /* ---- Textarea (notes) ---- */
+  .notes-container {
+    position: relative;
+    margin-bottom: 6px;
+  }
   textarea {
     width: 100%;
-    height: 180px;
+    height: 200px;
     border: 1px solid #ddd;
-    border-radius: 5px;
-    padding: 8px 10px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    padding-bottom: 36px; /* room for the drop hint */
     font-size: 12px;
-    font-family: 'SF Mono', 'Menlo', monospace;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    color: #2a2018;
     resize: vertical;
     outline: none;
-    line-height: 1.5;
+    line-height: 1.6;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #fff;
   }
-  textarea:focus { border-color: #0d99ff; }
+  textarea:focus {
+    border-color: #EE5B20;
+    box-shadow: 0 0 0 2px rgba(238, 91, 32, 0.12);
+  }
+  textarea::placeholder { color: #bbb; }
 
-  /* File upload row */
-  .upload-row {
+  /* Drag-and-drop overlay */
+  .notes-container.dragover textarea {
+    border-color: #EE5B20;
+    background: #FFF8F5;
+  }
+  .notes-container .drop-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    right: 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    border: 1px dashed #ccc;
-    border-radius: 5px;
-    cursor: pointer;
-    background: #fafafa;
+    gap: 6px;
+    font-size: 11px;
+    color: #aaa;
+    pointer-events: none;
   }
-  .upload-row:hover { border-color: #0d99ff; background: #f0f8ff; }
-  .upload-row input[type="file"] { display: none; }
-  .upload-icon { font-size: 16px; }
-  .upload-label { font-size: 12px; color: #555; flex: 1; }
-  .file-name { font-size: 11px; color: #0d99ff; font-style: italic; }
+  .notes-container .drop-hint .upload-click {
+    pointer-events: auto;
+    color: #EE5B20;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .notes-container .drop-hint .upload-click:hover {
+    text-decoration: underline;
+  }
+  .notes-container .file-loaded {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 10px;
+    color: #EE5B20;
+    font-weight: 500;
+    pointer-events: none;
+  }
 
-  /* Inline row for date field + today button */
-  .date-row {
+  /* Hidden file input */
+  #file-input { display: none; }
+
+  /* ---- Meta row beneath textarea ---- */
+  .notes-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #999;
+    padding: 0 2px;
+    min-height: 18px;
+  }
+  .slide-estimate {
+    font-weight: 500;
+    color: #777;
+  }
+  .slide-estimate strong {
+    color: #EE5B20;
+    font-weight: 600;
+  }
+
+  /* ---- Two-column row ---- */
+  .two-col {
+    display: flex;
+    gap: 12px;
+  }
+  .two-col > .col {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Inline row (shared by title + date) */
+  .inline-row {
     display: flex;
     gap: 8px;
     align-items: center;
   }
-  .date-row input[type="text"] { flex: 1; }
-  .btn-today {
+  .inline-row input[type="text"] { flex: 1; }
+  .btn-inline {
     flex-shrink: 0;
-    padding: 7px 12px;
+    padding: 8px 12px;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 6px;
     background: #fafafa;
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
-  .btn-today:hover { background: #e8f4ff; border-color: #0d99ff; color: #0d99ff; }
-  .btn-today:active { background: #d0ebff; }
+  .btn-inline:hover {
+    background: #FFF3ED;
+    border-color: #EE5B20;
+    color: #EE5B20;
+  }
+  .btn-inline:active { background: #FFE8DC; }
 
-  /* Buttons */
+  /* Error shake for auto-title button */
+  .btn-inline.error-flash {
+    border-color: #c0392b;
+    color: #c0392b;
+    background: #fdecea;
+    animation: btn-shake 0.4s ease;
+  }
+  @keyframes btn-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+  }
+
+  /* Tooltip for auto-title error */
+  .btn-inline-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .btn-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 500;
+    color: #c0392b;
+    background: #fdecea;
+    padding: 5px 10px;
+    border-radius: 5px;
+    pointer-events: none;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .btn-tooltip.visible { display: block; }
+  .btn-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 12px;
+    border: 5px solid transparent;
+    border-top-color: #fdecea;
+  }
+
+  /* ---- Error ---- */
+  .error {
+    display: none;
+    color: #c0392b;
+    font-size: 11px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #fdecea;
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+  .error.visible { display: block; }
+
+  /* ---- Generate button ---- */
+  .btn-generate {
+    width: 100%;
+    padding: 12px 0;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    background: #EE5B20;
+    color: #fff;
+    margin-top: 20px;
+    letter-spacing: -0.01em;
+  }
+  .btn-generate:hover { background: #D94E18; }
+  .btn-generate:active { background: #C4441A; transform: scale(0.99); }
+  .btn-generate:disabled {
+    background: #F0A888;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-shortcut {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.7;
+    margin-left: 6px;
+  }
+
+  /* ---- Shapes panel buttons (existing behavior) ---- */
   .btn-row {
     display: flex;
     gap: 8px;
     margin-top: 16px;
   }
-  button {
+  .btn-row button {
     flex: 1;
     padding: 9px 0;
     border: none;
@@ -108,53 +331,16 @@
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: opacity 0.15s;
   }
-  button:hover { opacity: 0.85; }
-  button:active { opacity: 0.7; }
   .btn-primary { background: #0d99ff; color: white; }
-  .btn-primary:disabled { background: #a0d0f0; cursor: not-allowed; opacity: 1; }
   .btn-secondary { background: #f0f0f0; color: #333; }
-
-  /* Error */
-  .error {
-    display: none;
-    color: #c0392b;
-    font-size: 11px;
-    margin-top: 6px;
-    padding: 6px 8px;
-    background: #fdecea;
-    border-radius: 4px;
-  }
-  .error.visible { display: block; }
-
-  /* Format hint */
-  .hint {
-    font-size: 11px;
-    color: #888;
-    margin-top: 4px;
-    line-height: 1.5;
-  }
-  .hint code {
-    background: #f5f5f5;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-  }
-
-  /* Two-column row */
-  .two-col {
-    display: flex;
-    gap: 12px;
-  }
-  .two-col > .col { flex: 1; min-width: 0; }
 </style>
 </head>
 <body>
 
-<!-- Panel A: existing shapes UI for figma / figjam / buzz -->
+<!-- Panel A: shapes UI for figma / figjam / buzz (unchanged) -->
 <div id="panel-shapes">
-  <h2>Shape Creator</h2>
+  <h2 style="font-size:15px;font-weight:600;margin-bottom:14px;">Shape Creator</h2>
   <label for="count">Count</label>
   <input id="count" type="number" value="5">
   <div class="btn-row">
@@ -165,54 +351,89 @@
 
 <!-- Panel B: notes-to-slides UI for the Slides editor -->
 <div id="panel-notes">
-  <h2>Notes to Slides</h2>
 
-  <label for="slide-title">Slide deck title</label>
-  <input type="text" id="slide-title" placeholder="e.g. Talk with a social worker in the non-profit space">
+  <div class="plugin-header">
+    <h2>Ash Notes</h2>
+    <span class="badge">Slides</span>
+    <span class="version">v1.0.0</span>
+  </div>
 
-  <div class="two-col">
-    <div class="col">
-      <label for="author-input">Interviewed by</label>
-      <input type="text" id="author-input" placeholder="e.g. Clare Flanagan">
-    </div>
-    <div class="col">
-      <label for="date-input">Date</label>
-      <div class="date-row">
-        <input type="text" id="date-input" placeholder="e.g. February 20, 2026">
-        <button type="button" class="btn-today" id="date-today">Today</button>
+  <!-- Cover details section -->
+  <div class="section">
+    <div class="section-label">Cover slide</div>
+
+    <div class="field-group">
+      <label for="slide-title">Title</label>
+      <div class="inline-row">
+        <input type="text" id="slide-title" placeholder="e.g. Talk with a social worker in the non-profit space">
+        <div class="btn-inline-wrap">
+          <span class="btn-tooltip" id="auto-title-tooltip">Paste notes first</span>
+          <button type="button" class="btn-inline" id="auto-title">Auto</button>
+        </div>
       </div>
     </div>
+
+    <div class="field-group">
+      <div class="two-col">
+        <div class="col">
+          <label for="author-input">Interviewed by</label>
+          <input type="text" id="author-input" placeholder="e.g. Clare Flanagan">
+        </div>
+        <div class="col">
+          <label for="date-input">Date</label>
+          <div class="inline-row">
+            <input type="text" id="date-input" placeholder="e.g. February 20, 2026">
+            <button type="button" class="btn-inline" id="date-today">Today</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label for="tags-input">Topics <span class="optional-tag">comma-separated</span></label>
+      <input type="text" id="tags-input" placeholder="e.g. Social, Personas, New Features">
+    </div>
   </div>
 
-  <label for="tags-input">Topic areas <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
-  <input type="text" id="tags-input" placeholder="e.g. Social, Personas, New Features">
+  <!-- Notes content section -->
+  <div class="section">
+    <div class="section-label">Interview notes</div>
 
-  <label for="notes-text">Paste interview notes</label>
-  <textarea
-    id="notes-text"
-    placeholder="**9:45am, 2.20.26** Intro: background + why she started using Ash&#10;* Top-level bullets become individual bullet points&#10;   * Indented bullets are preserved as sub-points&#10;      * All original text is kept word-for-word"
-  ></textarea>
-  <div class="hint">
-    Text will be distributed across slides automatically.
-  </div>
-
-  <label>Or upload a .md / .txt file</label>
-  <label class="upload-row" for="file-input">
+    <div class="notes-container" id="notes-container">
+      <textarea
+        id="notes-text"
+        placeholder="Paste your raw interview notes here.&#10;&#10;Text will be flowed across as many slides as needed, preserving your original line breaks and spacing."
+      ></textarea>
+      <div class="drop-hint">
+        <span>Drop a .md or .txt file, or </span>
+        <span class="upload-click" id="upload-trigger">browse</span>
+      </div>
+      <span class="file-loaded" id="file-name-hint"></span>
+    </div>
     <input type="file" id="file-input" accept=".md,.txt">
-    <span class="upload-icon">&#128196;</span>
-    <span class="upload-label">Click to choose a file</span>
-    <span class="file-name" id="file-name-hint"></span>
-  </label>
+
+    <div class="notes-meta">
+      <span class="slide-estimate" id="slide-estimate"></span>
+      <span id="shortcut-hint" style="font-size:10px;color:#bbb;"></span>
+    </div>
+  </div>
 
   <div class="error" id="notes-error">Please paste some notes or upload a file first.</div>
 
-  <div class="btn-row">
-    <button class="btn-primary" id="notes-create">Generate Slides</button>
-    <button class="btn-secondary" id="notes-cancel">Cancel</button>
-  </div>
+  <button class="btn-generate" id="notes-create">
+    Generate Slides
+    <span class="btn-shortcut" id="shortcut-label"></span>
+  </button>
+
 </div>
 
 <script>
+
+// ---- Detect OS for shortcut label ----
+var isMac = navigator.platform.indexOf('Mac') > -1;
+var modKey = isMac ? '\u2318' : 'Ctrl+';
+document.getElementById('shortcut-label').textContent = '(' + modKey + '\u23CE)';
+document.getElementById('shortcut-hint').textContent = modKey + 'Enter to generate';
 
 // ---- Panel switching based on init message from code.ts ----
 window.onmessage = function(event) {
@@ -237,18 +458,29 @@ document.getElementById('cancel').onclick = function() {
   parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
 };
 
-// ---- "Today" button fills in current date ----
-document.getElementById('date-today').onclick = function() {
+// ---- Auto-fill today's date on load ----
+function formatToday() {
   var now = new Date();
   var months = [
     'January','February','March','April','May','June',
     'July','August','September','October','November','December'
   ];
-  var formatted = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
-  document.getElementById('date-input').value = formatted;
+  return months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+}
+
+// Pre-fill the date field
+document.getElementById('date-input').value = formatToday();
+
+// "Today" button resets to current date
+document.getElementById('date-today').onclick = function() {
+  document.getElementById('date-input').value = formatToday();
 };
 
-// ---- File upload: read .md/.txt into textarea ----
+// ---- File upload: click trigger + read into textarea ----
+document.getElementById('upload-trigger').onclick = function() {
+  document.getElementById('file-input').click();
+};
+
 document.getElementById('file-input').addEventListener('change', function(e) {
   var file = e.target.files[0];
   if (!file) return;
@@ -256,42 +488,104 @@ document.getElementById('file-input').addEventListener('change', function(e) {
   var reader = new FileReader();
   reader.onload = function(evt) {
     document.getElementById('notes-text').value = evt.target.result;
+    updateSlideEstimate();
   };
   reader.readAsText(file);
 });
 
-// ---- Notes parsing (runs entirely in browser context) ----
-// Simplified: no bullet formatting or header extraction.
-// Just splits raw text into non-empty lines for flowing across slides.
+// ---- Drag and drop on textarea ----
+var notesCont = document.getElementById('notes-container');
+
+notesCont.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  notesCont.classList.add('dragover');
+});
+
+notesCont.addEventListener('dragleave', function(e) {
+  notesCont.classList.remove('dragover');
+});
+
+notesCont.addEventListener('drop', function(e) {
+  e.preventDefault();
+  notesCont.classList.remove('dragover');
+  var file = e.dataTransfer.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'md' && ext !== 'txt') return;
+  document.getElementById('file-name-hint').textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    document.getElementById('notes-text').value = evt.target.result;
+    updateSlideEstimate();
+  };
+  reader.readAsText(file);
+});
+
+// ---- Live slide estimate ----
+var CHARS_PER_LINE = 85;
+var MAX_LINES = 13;
+
+function estimateSlides(text) {
+  if (!text.trim()) return 0;
+  var lines = text.split('\n');
+  // Trim leading/trailing blank lines (same as parseNotes)
+  while (lines.length > 0 && lines[0].trim() === '') lines.shift();
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+  if (lines.length === 0) return 0;
+
+  // Estimate wrapped line count
+  var totalWrapped = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var len = lines[i].length;
+    if (len === 0) {
+      totalWrapped += 1; // blank line = 1 line
+    } else {
+      totalWrapped += Math.ceil(len / CHARS_PER_LINE);
+    }
+  }
+  return Math.ceil(totalWrapped / MAX_LINES);
+}
+
+function updateSlideEstimate() {
+  var text = document.getElementById('notes-text').value;
+  var count = estimateSlides(text);
+  var el = document.getElementById('slide-estimate');
+  if (count === 0) {
+    el.textContent = '';
+  } else {
+    var total = count + 1; // +1 for cover slide
+    el.innerHTML = '<strong>' + total + '</strong> slide' + (total === 1 ? '' : 's') + ' (1 cover + ' + count + ' content)';
+  }
+}
+
+document.getElementById('notes-text').addEventListener('input', updateSlideEstimate);
+
+// ---- Notes parsing ----
 function parseNotes(rawText) {
   var lines = rawText.split('\n');
   var bodyLines = [];
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== '') {
-      bodyLines.push(lines[i]);
-    }
+    bodyLines.push(lines[i]);
   }
-  return {
-    contentTitle: '',
-    contentSubtitle: '',
-    bodyLines: bodyLines
-  };
+  while (bodyLines.length > 0 && bodyLines[0].trim() === '') bodyLines.shift();
+  while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1].trim() === '') bodyLines.pop();
+  return { bodyLines: bodyLines };
 }
 
 // ---- Generate Slides submit ----
-document.getElementById('notes-create').onclick = function() {
+function generateSlides() {
   var rawText = document.getElementById('notes-text').value.trim();
   var errorEl = document.getElementById('notes-error');
 
   if (!rawText) {
     errorEl.classList.add('visible');
+    document.getElementById('notes-text').focus();
     return;
   }
   errorEl.classList.remove('visible');
 
   var parsed = parseNotes(rawText);
 
-  // Gather metadata from the form fields
   var title = document.getElementById('slide-title').value.trim();
   var author = document.getElementById('author-input').value.trim();
   var date = document.getElementById('date-input').value.trim();
@@ -300,18 +594,13 @@ document.getElementById('notes-create').onclick = function() {
     ? tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t.length > 0; })
     : [];
 
-  // If no explicit title, fall back to the content title
-  if (!title) {
-    title = parsed.contentTitle || 'Interview Notes';
-  }
+  if (!title) title = 'Interview Notes';
 
   var data = {
     title: title,
     author: author,
     date: date,
     topicTags: topicTags,
-    contentTitle: parsed.contentTitle,
-    contentSubtitle: parsed.contentSubtitle,
     bodyLines: parsed.bodyLines
   };
 
@@ -322,10 +611,95 @@ document.getElementById('notes-create').onclick = function() {
   var btn = document.getElementById('notes-create');
   btn.disabled = true;
   btn.textContent = 'Generating\u2026';
-};
+}
 
-document.getElementById('notes-cancel').onclick = function() {
-  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+document.getElementById('notes-create').onclick = generateSlides;
+
+// ---- Keyboard shortcut: Cmd/Ctrl + Enter ----
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    var btn = document.getElementById('notes-create');
+    if (!btn.disabled && document.getElementById('panel-notes').classList.contains('active')) {
+      generateSlides();
+    }
+  }
+});
+
+// ---- Clear error when user starts typing ----
+document.getElementById('notes-text').addEventListener('input', function() {
+  document.getElementById('notes-error').classList.remove('visible');
+});
+
+// ---- Auto-title from notes content ----
+function extractAutoTitle(rawText) {
+  var lines = rawText.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+
+    // Strip markdown heading markers
+    line = line.replace(/^#{1,6}\s+/, '');
+    // Strip bullet / list markers (*, -, numbered)
+    line = line.replace(/^[\*\-\u2022]\s+/, '');
+    line = line.replace(/^\d+[\.\)]\s+/, '');
+    // Strip bold / italic markdown wrappers
+    line = line.replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1');
+    line = line.replace(/_{1,3}([^_]+)_{1,3}/g, '$1');
+
+    line = line.trim();
+    if (!line) continue;
+
+    // Skip lines that look like pure timestamps: "9:45am", "2.20.26", "10:30 AM, Feb 20"
+    if (/^\d{1,2}[:\.\-\/]\d{1,2}/.test(line) && line.length < 30) continue;
+
+    // Skip very short lines (likely labels or fragments)
+    if (line.length < 8) continue;
+
+    // Truncate to ~90 chars at a word boundary
+    if (line.length > 90) {
+      line = line.substring(0, 90).replace(/\s+\S*$/, '') + '\u2026';
+    }
+
+    // Capitalize first letter
+    return line.charAt(0).toUpperCase() + line.slice(1);
+  }
+
+  // Fallback: just use first non-empty line, truncated
+  for (var j = 0; j < lines.length; j++) {
+    var fallback = lines[j].trim();
+    if (fallback) {
+      if (fallback.length > 90) {
+        fallback = fallback.substring(0, 90).replace(/\s+\S*$/, '') + '\u2026';
+      }
+      return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+    }
+  }
+  return '';
+}
+
+document.getElementById('auto-title').onclick = function() {
+  var rawText = document.getElementById('notes-text').value.trim();
+  var btn = document.getElementById('auto-title');
+  var tooltip = document.getElementById('auto-title-tooltip');
+
+  if (!rawText) {
+    // Show error state
+    btn.classList.add('error-flash');
+    tooltip.classList.add('visible');
+    setTimeout(function() {
+      btn.classList.remove('error-flash');
+    }, 500);
+    setTimeout(function() {
+      tooltip.classList.remove('visible');
+    }, 2000);
+    return;
+  }
+
+  var title = extractAutoTitle(rawText);
+  if (title) {
+    document.getElementById('slide-title').value = title;
+  }
 };
 
 </script>
