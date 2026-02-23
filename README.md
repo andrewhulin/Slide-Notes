@@ -1,88 +1,54 @@
 # Ash Notes
 
-A Figma plugin that converts raw UX interview notes into a formatted slide deck in **Figma Slides**. Paste your notes, fill in a title and metadata, and the plugin generates a styled cover slide and content slides where your text flows automatically across as many pages as needed.
+A Figma plugin that turns raw UX interview notes into a formatted slide deck. Paste your notes, add a title and details, and the plugin builds a styled cover slide and content slides automatically.
 
 ---
 
-## Installation
+## Installation (2 steps, no coding required)
 
-### Prerequisites
+### 1. Download
 
-You need **Node.js** installed on your computer. If you're not sure whether you have it, open Terminal (Mac) or Command Prompt (Windows) and type:
+Click the green **Code** button at the top of this page, then click **Download ZIP**. Unzip it anywhere on your computer.
 
-```
-node -v
-```
+### 2. Add to Figma
 
-If you see a version number (like `v18.17.0`), you're good. If you see an error, download and install Node.js from [https://nodejs.org](https://nodejs.org) — choose the **LTS** version and follow the installer.
+1. Open [figma.com](https://www.figma.com) and open any **Slides** file (or create a new one).
+2. In the menu bar, go to **Plugins → Development → Import plugin from manifest…**
+3. In the file picker that appears, navigate into the folder you unzipped, then into the **Ash-Notes** folder, select **manifest.json**, and click **Open**.
 
-### Step 1 — Download the project
+Done. The plugin is installed.
 
-Go to the GitHub page for this project and click the green **Code** button, then click **Download ZIP**.
-
-Unzip the downloaded file. You should now have a folder called `Slide-Notes` (or `Slide-Notes-main`) somewhere on your computer. Remember where it is — you'll need the path in the next step.
-
-### Step 2 — Build the plugin
-
-Open **Terminal** (Mac) or **Command Prompt** (Windows). You need to navigate into the `Ash-Notes` folder inside the project you just unzipped.
-
-**On Mac**, type `cd` followed by a space, then drag the `Ash-Notes` folder from Finder directly into the Terminal window — it will paste the path for you. Press Enter.
-
-**On Windows**, open the `Ash-Notes` folder in File Explorer, click the address bar at the top, copy the path, then type `cd` followed by a space, paste the path, and press Enter.
-
-You should now be inside the `Ash-Notes` folder. Run these two commands one at a time (type each one, press Enter, and wait for it to finish before running the next):
-
-```
-npm install
-```
-
-This downloads the project's dependencies. It may take a minute and will print a lot of text — that's normal. Wait until you see a new blank prompt line.
-
-```
-npm run build
-```
-
-This compiles the plugin. If it finishes without printing any errors, you're ready for the next step.
-
-### Step 3 — Add the plugin to Figma
-
-1. Open [Figma](https://www.figma.com) in your browser (or the desktop app) and open any **Slides** file — or create a new one.
-2. In the toolbar, go to **Plugins → Development → Import plugin from manifest…**
-3. A file picker will open. Navigate to the `Ash-Notes` folder inside the project you downloaded, select the file called **`manifest.json`**, and click Open.
-
-That's it — the plugin is now installed.
-
-### Step 4 — Run the plugin
-
-In any Figma Slides file, go to **Plugins → Development → Ash-Notes** to launch it.
+To run it, go to **Plugins → Development → Ash-Notes** from any Figma Slides file.
 
 ---
 
-## Usage
+## How to use
 
-1. Open the plugin from **Plugins → Development → Ash-Notes** in a Figma Slides file.
-2. Fill in the cover slide details — title, author, date, and topic tags.
-3. Paste your interview notes into the text area, or drag in a `.md` / `.txt` file.
-4. Click **Generate Slides**. The plugin creates a formatted cover slide and distributes your notes across content slides automatically.
+1. Run the plugin from **Plugins → Development → Ash-Notes**.
+2. Fill in the cover details — title, author, date, and topic tags.
+3. Paste your interview notes into the text area (or drag in a `.md` / `.txt` file).
+4. Click **Generate Slides**.
 
-**Tips:**
-- The **Today** button auto-fills the current date (it's also pre-filled when you open the plugin).
-- The **Auto** button next to the title field generates a title from the first meaningful line of your notes.
-- Press **⌘ Enter** (Mac) or **Ctrl Enter** (Windows) as a shortcut to generate slides.
-- The slide count estimate updates live as you type or paste notes.
+**Shortcuts and tips:**
+- **Auto** button next to the title field generates a title from the first line of your notes.
+- **Today** button fills in the current date (also pre-filled on launch).
+- **⌘ Enter** (Mac) or **Ctrl Enter** (Windows) to generate without clicking the button.
+- A live slide count updates as you type.
 
 ---
 
 ## For developers
 
-All commands run from the `Ash-Notes/` directory:
+If you're making changes to the plugin source code, you'll need [Node.js](https://nodejs.org) installed.
 
-| Command | What it does |
-|---|---|
-| `npm run build` | Compile the plugin (run this after making changes) |
-| `npm run watch` | Auto-recompile on every file save (useful during development) |
-| `npm run lint` | Check code for style issues |
-| `npm run lint:fix` | Auto-fix style issues |
+From the `Ash-Notes/` folder, run:
+
+```sh
+npm install        # first time only — downloads dependencies
+npm run watch      # auto-recompiles on every save
+```
+
+Other commands: `npm run build` (one-time compile), `npm run lint` (check code style), `npm run lint:fix` (auto-fix).
 
 ### Project structure
 
@@ -94,6 +60,7 @@ Slide-Notes/
     ├── manifest.json         # Figma plugin manifest
     ├── package.json          # Scripts and dev dependencies
     ├── tsconfig.json         # TypeScript config
-    ├── code.ts               # Plugin logic (compiles to code.js)
+    ├── code.ts               # Plugin logic (source)
+    ├── code.js               # Plugin logic (compiled — ready to use)
     └── ui.html               # Plugin UI
 ```
