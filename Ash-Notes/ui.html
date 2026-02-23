@@ -193,9 +193,7 @@
     placeholder="**9:45am, 2.20.26** Intro: background + why she started using Ash&#10;* Top-level bullets become individual bullet points&#10;   * Indented bullets are preserved as sub-points&#10;      * All original text is kept word-for-word"
   ></textarea>
   <div class="hint">
-    First line &#8594; content slide heading &nbsp;|&nbsp;
-    <code>* bullet</code> at column 0 &#8594; top-level &#8226; &nbsp;|&nbsp;
-    Indented <code>* </code> &#8594; nested &#8226;
+    Text will be distributed across slides automatically.
   </div>
 
   <label>Or upload a .md / .txt file</label>
@@ -263,64 +261,19 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 });
 
 // ---- Notes parsing (runs entirely in browser context) ----
+// Simplified: no bullet formatting or header extraction.
+// Just splits raw text into non-empty lines for flowing across slides.
 function parseNotes(rawText) {
   var lines = rawText.split('\n');
-  var headerLines = [];
-  var i = 0;
-
-  // Phase 1: collect header lines (everything before first "* " at column 0)
-  while (i < lines.length && !/^\* /.test(lines[i])) {
-    if (lines[i].trim() !== '') {
-      headerLines.push(lines[i].trim());
-    }
-    i++;
-  }
-
-  // Parse first header line for content slide title / subtitle.
-  // If the line uses **bold** markers, the bold part becomes the title
-  // and the rest becomes the subtitle. Otherwise the whole line is the title.
-  var contentTitle = '';
-  var contentSubtitle = '';
-  if (headerLines.length > 0) {
-    var header = headerLines[0];
-    var boldMatch = header.match(/^\*\*(.+?)\*\*\s*(.*)/);
-    if (boldMatch) {
-      contentTitle = boldMatch[1].trim();
-      contentSubtitle = boldMatch[2].trim();
-    } else {
-      // Try splitting on double-space or first colon after a timestamp pattern
-      contentTitle = header;
-    }
-  }
-
-  // Phase 2: collect all bullet lines and format them with • characters
   var bodyLines = [];
-  while (i < lines.length) {
-    var line = lines[i];
-    if (line.trim() === '') {
-      i++;
-      continue; // skip blank lines
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== '') {
+      bodyLines.push(lines[i]);
     }
-    var bulletMatch = line.match(/^(\s*)\* (.+)/);
-    if (bulletMatch) {
-      // Convert indent from spaces to a level: every 4 spaces = 1 level
-      var rawIndent = bulletMatch[1].length;
-      var level = Math.floor(rawIndent / 4);
-      var indent = '';
-      for (var j = 0; j < level; j++) {
-        indent += '    ';
-      }
-      bodyLines.push(indent + '\u2022  ' + bulletMatch[2]);
-    } else {
-      // Non-bullet line — preserve as-is (e.g. continuation text)
-      bodyLines.push(line);
-    }
-    i++;
   }
-
   return {
-    contentTitle: contentTitle,
-    contentSubtitle: contentSubtitle,
+    contentTitle: '',
+    contentSubtitle: '',
     bodyLines: bodyLines
   };
 }
