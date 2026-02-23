@@ -1,4 +1,4 @@
-# Ash Notes
+# Ash Notes v1.0.0
 
 A Figma plugin that turns raw UX interview notes into a formatted slide deck. Paste your notes, add a title and details, and the plugin builds a styled cover slide and content slides automatically.
 

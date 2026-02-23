@@ -49,6 +49,26 @@
     color: #bbb;
     font-weight: 400;
   }
+  .plugin-header .help-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+    font-size: 11px;
+    font-weight: 600;
+    color: #bbb;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .plugin-header .help-link:hover {
+    border-color: #EE5B20;
+    color: #EE5B20;
+  }
 
   /* ---- Section groups ---- */
   .section {
@@ -356,6 +376,7 @@
     <h2>Ash Notes</h2>
     <span class="badge">Slides</span>
     <span class="version">v1.0.0</span>
+    <a class="help-link" href="https://github.com/andrewhulin/Slide-Notes" target="_blank" title="Help &amp; documentation">?</a>
   </div>
 
   <!-- Cover details section -->
