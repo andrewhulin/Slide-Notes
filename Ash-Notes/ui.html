@@ -26,7 +26,7 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #666;
-    margin: 14px 0 5px;
+    margin: 12px 0 4px;
   }
   label:first-of-type { margin-top: 0; }
   input[type="text"],
@@ -43,7 +43,7 @@
 
   textarea {
     width: 100%;
-    height: 200px;
+    height: 180px;
     border: 1px solid #ddd;
     border-radius: 5px;
     padding: 8px 10px;
@@ -71,6 +71,28 @@
   .upload-icon { font-size: 16px; }
   .upload-label { font-size: 12px; color: #555; flex: 1; }
   .file-name { font-size: 11px; color: #0d99ff; font-style: italic; }
+
+  /* Inline row for date field + today button */
+  .date-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .date-row input[type="text"] { flex: 1; }
+  .btn-today {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: #fafafa;
+    font-size: 12px;
+    font-weight: 500;
+    color: #333;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-today:hover { background: #e8f4ff; border-color: #0d99ff; color: #0d99ff; }
+  .btn-today:active { background: #d0ebff; }
 
   /* Buttons */
   .btn-row {
@@ -110,7 +132,7 @@
   .hint {
     font-size: 11px;
     color: #888;
-    margin-top: 5px;
+    margin-top: 4px;
     line-height: 1.5;
   }
   .hint code {
@@ -119,6 +141,13 @@
     border-radius: 3px;
     font-family: monospace;
   }
+
+  /* Two-column row */
+  .two-col {
+    display: flex;
+    gap: 12px;
+  }
+  .two-col > .col { flex: 1; min-width: 0; }
 </style>
 </head>
 <body>
@@ -138,17 +167,35 @@
 <div id="panel-notes">
   <h2>Notes to Slides</h2>
 
-  <label for="title-override">Interview title <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional override)</span></label>
-  <input type="text" id="title-override" placeholder="Auto-detected from first line of notes">
+  <label for="slide-title">Slide deck title</label>
+  <input type="text" id="slide-title" placeholder="e.g. Talk with a social worker in the non-profit space">
+
+  <div class="two-col">
+    <div class="col">
+      <label for="author-input">Interviewed by</label>
+      <input type="text" id="author-input" placeholder="e.g. Clare Flanagan">
+    </div>
+    <div class="col">
+      <label for="date-input">Date</label>
+      <div class="date-row">
+        <input type="text" id="date-input" placeholder="e.g. February 20, 2026">
+        <button type="button" class="btn-today" id="date-today">Today</button>
+      </div>
+    </div>
+  </div>
+
+  <label for="tags-input">Topic areas <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
+  <input type="text" id="tags-input" placeholder="e.g. Social, Personas, New Features">
 
   <label for="notes-text">Paste interview notes</label>
   <textarea
     id="notes-text"
-    placeholder="9:45am, 2.20.26  Intro: background + why she started using Ash&#10;* Top-level bullets become individual slides&#10;   * Indented bullets are preserved as sub-points&#10;      * All original text is kept word-for-word"
+    placeholder="**9:45am, 2.20.26** Intro: background + why she started using Ash&#10;* Top-level bullets become individual bullet points&#10;   * Indented bullets are preserved as sub-points&#10;      * All original text is kept word-for-word"
   ></textarea>
   <div class="hint">
-    First non-bullet line → slide deck title &nbsp;|&nbsp;
-    <code>* bullet</code> at column 0 → new slide
+    First line &#8594; content slide heading &nbsp;|&nbsp;
+    <code>* bullet</code> at column 0 &#8594; top-level &#8226; &nbsp;|&nbsp;
+    Indented <code>* </code> &#8594; nested &#8226;
   </div>
 
   <label>Or upload a .md / .txt file</label>
@@ -192,6 +239,17 @@ document.getElementById('cancel').onclick = function() {
   parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
 };
 
+// ---- "Today" button fills in current date ----
+document.getElementById('date-today').onclick = function() {
+  var now = new Date();
+  var months = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+  ];
+  var formatted = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+  document.getElementById('date-input').value = formatted;
+};
+
 // ---- File upload: read .md/.txt into textarea ----
 document.getElementById('file-input').addEventListener('change', function(e) {
   var file = e.target.files[0];
@@ -205,7 +263,7 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 });
 
 // ---- Notes parsing (runs entirely in browser context) ----
-function parseNotes(rawText, titleOverride) {
+function parseNotes(rawText) {
   var lines = rawText.split('\n');
   var headerLines = [];
   var i = 0;
@@ -218,69 +276,52 @@ function parseNotes(rawText, titleOverride) {
     i++;
   }
 
-  var rawTitle = (titleOverride && titleOverride.trim())
-    ? titleOverride.trim()
-    : (headerLines.length > 0 ? headerLines[0] : 'Interview Notes');
+  // Parse first header line for content slide title / subtitle.
+  // If the line uses **bold** markers, the bold part becomes the title
+  // and the rest becomes the subtitle. Otherwise the whole line is the title.
+  var contentTitle = '';
+  var contentSubtitle = '';
+  if (headerLines.length > 0) {
+    var header = headerLines[0];
+    var boldMatch = header.match(/^\*\*(.+?)\*\*\s*(.*)/);
+    if (boldMatch) {
+      contentTitle = boldMatch[1].trim();
+      contentSubtitle = boldMatch[2].trim();
+    } else {
+      // Try splitting on double-space or first colon after a timestamp pattern
+      contentTitle = header;
+    }
+  }
 
-  // Phase 2: split into sections at each top-level bullet (* at column 0)
-  var sections = [];
-  var currentSection = null;
-
+  // Phase 2: collect all bullet lines and format them with • characters
+  var bodyLines = [];
   while (i < lines.length) {
     var line = lines[i];
-    var topLevelMatch = line.match(/^\* (.+)/);
-
-    if (topLevelMatch) {
-      if (currentSection !== null) {
-        sections.push(currentSection);
+    if (line.trim() === '') {
+      i++;
+      continue; // skip blank lines
+    }
+    var bulletMatch = line.match(/^(\s*)\* (.+)/);
+    if (bulletMatch) {
+      // Convert indent from spaces to a level: every 4 spaces = 1 level
+      var rawIndent = bulletMatch[1].length;
+      var level = Math.floor(rawIndent / 4);
+      var indent = '';
+      for (var j = 0; j < level; j++) {
+        indent += '    ';
       }
-      currentSection = { title: topLevelMatch[1].trim(), body: [] };
-    } else if (currentSection !== null) {
-      currentSection.body.push(line);
+      bodyLines.push(indent + '\u2022  ' + bulletMatch[2]);
+    } else {
+      // Non-bullet line — preserve as-is (e.g. continuation text)
+      bodyLines.push(line);
     }
     i++;
   }
-  if (currentSection !== null) {
-    sections.push(currentSection);
-  }
-
-  // Trim trailing blank lines from each section body
-  sections.forEach(function(s) {
-    while (s.body.length > 0 && s.body[s.body.length - 1].trim() === '') {
-      s.body.pop();
-    }
-  });
-
-  // If no top-level bullets were found, treat everything after the first line
-  // as one implicit section so it still gets split across slides correctly.
-  if (sections.length === 0) {
-    var bodyLines = [];
-    var skippedTitle = false;
-    for (var k = 0; k < lines.length; k++) {
-      if (!skippedTitle && lines[k].trim() !== '') {
-        skippedTitle = true; // first non-empty line is the title, skip it
-        continue;
-      }
-      if (skippedTitle) {
-        bodyLines.push(lines[k]);
-      }
-    }
-    // Trim leading blank lines
-    while (bodyLines.length > 0 && bodyLines[0].trim() === '') {
-      bodyLines.shift();
-    }
-    if (bodyLines.length > 0) {
-      sections.push({ title: rawTitle, body: bodyLines });
-    }
-  }
-
-  var topicAreas = sections.map(function(s) { return s.title; });
 
   return {
-    rawTitle: rawTitle,
-    headerLines: headerLines,
-    topicAreas: topicAreas,
-    sections: sections
+    contentTitle: contentTitle,
+    contentSubtitle: contentSubtitle,
+    bodyLines: bodyLines
   };
 }
 
@@ -295,11 +336,34 @@ document.getElementById('notes-create').onclick = function() {
   }
   errorEl.classList.remove('visible');
 
-  var titleOverride = document.getElementById('title-override').value;
-  var parsed = parseNotes(rawText, titleOverride);
+  var parsed = parseNotes(rawText);
+
+  // Gather metadata from the form fields
+  var title = document.getElementById('slide-title').value.trim();
+  var author = document.getElementById('author-input').value.trim();
+  var date = document.getElementById('date-input').value.trim();
+  var tagsRaw = document.getElementById('tags-input').value.trim();
+  var topicTags = tagsRaw
+    ? tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t.length > 0; })
+    : [];
+
+  // If no explicit title, fall back to the content title
+  if (!title) {
+    title = parsed.contentTitle || 'Interview Notes';
+  }
+
+  var data = {
+    title: title,
+    author: author,
+    date: date,
+    topicTags: topicTags,
+    contentTitle: parsed.contentTitle,
+    contentSubtitle: parsed.contentSubtitle,
+    bodyLines: parsed.bodyLines
+  };
 
   parent.postMessage({
-    pluginMessage: { type: 'create-notes-slides', data: parsed }
+    pluginMessage: { type: 'create-notes-slides', data: data }
   }, '*');
 
   var btn = document.getElementById('notes-create');

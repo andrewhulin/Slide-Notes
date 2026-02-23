@@ -4,7 +4,7 @@ Project guide for AI assistants working on the Slide-Notes codebase.
 
 ## Project Overview
 
-**Slide-Notes** (package name: **Ash-Notes**) is a Figma plugin with two modes depending on editor type. In Figma (design), FigJam (whiteboarding), and Buzz it presents a simple UI to generate a count of editor-specific objects (rectangles, connectors, or frames). In **Figma Slides** it presents a notes-to-slides converter: the user pastes raw interview notes (or uploads a `.md` file) and the plugin generates a formatted slide deck — one cover slide with a topic summary and one content slide per top-level bullet section.
+**Slide-Notes** (package name: **Ash-Notes**) is a Figma plugin with two modes depending on editor type. In Figma (design), FigJam (whiteboarding), and Buzz it presents a simple UI to generate a count of editor-specific objects (rectangles, connectors, or frames). In **Figma Slides** it presents a UX-interview-notes-to-slides converter: the user pastes raw interview notes (or uploads a `.md` file), fills in metadata (title, author, date, topic tags), and the plugin generates a formatted slide deck — one cover slide with topic pills, date, title, and author line, followed by content slides where the entire bulleted body flows across as many slides as needed.
 
 ## Repository Structure
 
@@ -48,7 +48,7 @@ npm run lint:fix   # Auto-fix lint issues
 - **`code.ts`** is the single entry point. It branches on `figma.editorType`:
   - `figma` — creates colored rectangles, positioned horizontally
   - `figjam` — creates rounded rectangles with connectors between them
-  - `slides` — shows a notes-to-slides UI (520×600). User pastes/uploads raw notes. The UI parses them with `parseNotes()` into a `ParsedNotes` object and sends `{ type: 'create-notes-slides', data }` to the plugin. `code.ts` then: extracts fonts from the existing deck, detects per-slide text colors by luminance, creates a cover slide (title + subtitle + topic list), then one or more content slides per `NoteSection`. Sections too long for one slide are split into `(cont'd)` continuations.
+  - `slides` — shows a notes-to-slides UI (520×720). The UI collects metadata (title, author, date, topic tags) and pastes/uploads raw notes. `parseNotes()` in the UI converts `* ` bullets to `•` formatted lines and extracts the content title/subtitle from the header line (supports `**bold**` markers for timestamp splitting). The UI sends `{ type: 'create-notes-slides', data }` to the plugin. `code.ts` then: extracts fonts from the existing deck, loads an italic font variant for the author line, detects per-slide text colors by luminance, creates a cover slide (topic pills + date + title + "Interviewed by" author), then content slides where the entire bullet body flows across slides (title/subtitle only on the first content slide).
   - `buzz` — creates frames via the buzz API
 - **`ui.html`** has two panels: `#panel-shapes` (shown for figma/figjam/buzz) and `#panel-notes` (shown for slides). Both start hidden; `code.ts` sends `{ type: 'init', editorType }` immediately after `figma.showUI()`, and `window.onmessage` in the UI activates the correct panel. Communication is via `parent.postMessage()` / `figma.ui.onmessage`.
 - The plugin closes itself after creating objects (`figma.closePlugin()`).
@@ -56,16 +56,14 @@ npm run lint:fix   # Auto-fix lint issues
 ## Key Types (defined at top of code.ts)
 
 ```typescript
-interface NoteSection {
-  title: string;    // text after "* " on a top-level bullet
-  body: string[];   // all subsequent lines until the next top-level bullet
-}
-
 interface ParsedNotes {
-  rawTitle: string;       // derived from header lines or user's title override
-  headerLines: string[];  // original non-bullet lines at top of notes
-  topicAreas: string[];   // first line of each section → used on cover slide
-  sections: NoteSection[];
+  title: string;           // Cover slide main title (user-supplied)
+  author: string;          // Cover: "Interviewed by X"
+  date: string;            // Cover: date string (e.g. "February 20, 2026")
+  topicTags: string[];     // Cover: pill tags (e.g. ["Social","Personas"])
+  contentTitle: string;    // Content slide heading (e.g. "9:45am, 2.20.26")
+  contentSubtitle: string; // Content slide subtitle (e.g. "Intro: background + why she started using Ash")
+  bodyLines: string[];     // Formatted bullet lines (• style) for content slides
 }
 
 // Only fonts are extracted from the deck — colors are determined per-slide
@@ -76,11 +74,23 @@ interface ThemeFonts {
 }
 
 type PluginMessage =
-  | { type: 'init' }
+  | { type: 'init'; editorType: string }
   | { type: 'create-shapes'; count: number }
   | { type: 'create-notes-slides'; data: ParsedNotes }
   | { type: 'cancel' };
 ```
+
+## UI Fields (Slides editor — #panel-notes)
+
+| Field | ID | Description |
+|-------|----|-------------|
+| Slide deck title | `slide-title` | Main title shown on cover slide |
+| Interviewed by | `author-input` | Author name → "Interviewed by X" on cover |
+| Date | `date-input` | Date string → displayed uppercase on cover |
+| Today button | `date-today` | Quick-fills date input with formatted current date |
+| Topic areas | `tags-input` | Comma-separated tags → pill badges on cover |
+| Notes textarea | `notes-text` | Raw interview notes (paste or file upload) |
+| File upload | `file-input` | .md / .txt → loads into textarea |
 
 ## Slide Layout Constants (code.ts — slides branch)
 
@@ -89,37 +99,50 @@ text-node overlap when titles or body text wraps to multiple lines.
 
 ### Cover slide
 
-| Element        | x   | y   | width        | font size             |
-|----------------|-----|-----|--------------|-----------------------|
-| Title          | 160 | 200 | `SLIDE_W-320` | 72px; 52 if >60 chars; 44 if >90 chars |
-| Subtitle       | 160 | 460 | `SLIDE_W-320` | 36px                  |
-| Topics label   | 160 | 580 | 400          | 30px                  |
-| Topics list    | 160 | 630 | `SLIDE_W-320` | 28px (up to 8 topics) |
+The cover slide positions text in the right portion of the slide (x=540)
+to leave room for template artwork on the left half.
 
-**Why y=460 for subtitle:** a 72px title at y=200 with 160% line height
-(115px/line) wraps to at most 2 lines → ends at y≈430. The 30px gap to y=460
-prevents overlap. Scaled-down fonts (52px / 44px) end even lower so the gap
-is larger.
+| Element          | x   | y   | width         | font / size            |
+|------------------|-----|-----|---------------|------------------------|
+| Topic pills      | right-aligned from x=1760 | 100 | auto-sized | 18px body font, uppercase, in rounded-rect frames |
+| Date             | 540 | 440 | 1220          | 20px body font, uppercase |
+| Title            | 540 | 500 | 1220          | 56px; 48 if >60 chars; 40 if >100 chars |
+| Interviewed by   | 540 | 850 | 1220          | 24px italic body font |
 
-### Content slides (createContentSlides)
+**Topic pills:** Each tag is rendered as a `FrameNode` with `cornerRadius=24`,
+semi-transparent fill adapted to the slide background (dark or light), and
+uppercase text. Pills are positioned right-to-left from `SLIDE_W - 160`.
 
-| Constant        | Value | Rationale |
-|-----------------|-------|-----------|
-| `TITLE_Y`       | 80    | Small top margin |
-| `BODY_START_Y`  | 320   | 52px title at 160% (83px/line) × 3 lines = 249px; 80+249=329 → 320 allows up to ~3-line section titles without overlap |
-| `CHARS_PER_LINE`| 78    | Wrap estimate for body text at 32px on 1760px-wide column |
-| `LINES_MAX`     | 12    | Available body height = 1080−320−80 = 680px; 680÷51px/line ≈ 13; 12 gives comfortable bottom margin |
+### Content slides (flowing body)
 
-Content title: 52px heading font. Body: 32px body font, 160% line height.
+| Constant          | Value | Rationale |
+|-------------------|-------|-----------|
+| `C_TITLE_Y`       | 80    | Content heading (timestamp) — first slide only |
+| `C_SUBTITLE_Y`    | 190   | Content subtitle — first slide only |
+| `FIRST_BODY_Y`    | 300   | Body starts lower on first content slide (after title+subtitle) |
+| `CONT_BODY_Y`     | 80    | Body starts at top on continuation slides |
+| `BODY_SIZE`        | 26    | Body font size |
+| `BODY_LINE_H`     | 42    | 26px × 160% line height ≈ 42px |
+| `CHARS_PER_LINE`   | 90    | Wrap estimate at 26px on 1760px-wide column |
+| `FIRST_MAX_LINES`  | 16    | `floor((1080−300−80) / 42)` = 16 |
+| `CONT_MAX_LINES`   | 21    | `floor((1080−80−80) / 42)` = 21 |
+
+Content title: 48px heading font. Subtitle: 28px body font. Body: 26px body font, 160% line height.
+
+**Key difference from previous architecture:** The body text flows as one continuous
+stream of `•`-formatted bullets across multiple slides. Only the first content
+slide shows the section title and subtitle. Subsequent slides contain only body text.
 
 ## Key Helper Functions (code.ts)
 
 ```typescript
 // Place a text node on a slide. autoResize defaults to 'HEIGHT'.
-addText(parent, content, { x, y, w, size, font, color, autoResize? })
+// Supports optional lineHeight: { value, unit } parameter.
+addText(parent, content, { x, y, w, size, font, color, autoResize?, lineHeight? })
 
-// Split a body string into page-sized chunks of at most maxLines wrapped lines.
-splitIntoChunks(text, charsPerLine, maxLines): string[]
+// Split formatted body lines across slides. First chunk gets fewer lines
+// (because the first content slide has a title+subtitle above the body).
+splitBodyIntoSlideChunks(lines, charsPerLine, firstMaxLines, contMaxLines): string[][]
 
 // Extract heading/body FontName from the first populated slide in the deck.
 // Falls back to Inter Bold / Inter Regular if no slides exist.
@@ -131,8 +154,11 @@ isBackgroundDark(slide): boolean
 // Return { heading: RGB, body: RGB } appropriate for the slide's background.
 textColorsForSlide(slide): { heading: RGB; body: RGB }
 
-// Create all slides (with cont'd splits) for one NoteSection.
-createContentSlides(section, slideW, slideH, margin, fonts): SlideNode[]
+// Return pill badge colors { bg, bgOpacity, text } adapted to the slide background.
+pillStyleForSlide(slide): { bg: RGB; bgOpacity: number; text: RGB }
+
+// Try to load an italic font variant; falls back to the base font.
+loadItalicVariant(baseFont): Promise<FontName>
 ```
 
 ## Notes Input Format (Slides editor)
@@ -140,18 +166,20 @@ createContentSlides(section, slideW, slideH, margin, fonts): SlideNode[]
 The notes parser (`parseNotes()` in `ui.html`) expects this structure:
 
 ```
-First non-bullet line(s)   →  slide title / header block (date, context, etc.)
-
-* Top-level bullet         →  one content slide per bullet
-   * Indented bullet       →  preserved as body text on that slide
-   * Another sub-point
-* Next top-level bullet    →  next content slide
-   * Its sub-points
+**9:45am, 2.20.26** Intro: background + why she started using Ash
+* Top-level bullet         →  • top-level bullet point
+    * Indented bullet      →      • nested bullet point
+        * Deeper indent    →          • deeper nested bullet
+* Next top-level bullet    →  • next top-level bullet point
+    * Its sub-points       →      • sub-points
 ```
 
-- Lines matching `/^\* /` (asterisk + space at column 0) create new content slides.
-- Everything else (indented bullets, blank lines, prose) becomes the body of the current slide.
-- If a section's body is too long for one slide, `splitIntoChunks()` splits it across `(cont'd)` slides.
+- The first non-bullet line is parsed as the content slide header. If it contains
+  `**bold**` markers, the bold portion becomes `contentTitle` (e.g. timestamp) and
+  the rest becomes `contentSubtitle`.
+- Lines matching `/^\* /` at column 0 become top-level `•` bullets.
+- Indented `* ` lines become nested `•` bullets (4 spaces per indent level).
+- All formatted body lines flow across content slides via `splitBodyIntoSlideChunks()`.
 
 ## Conventions
 
@@ -165,9 +193,11 @@ First non-bullet line(s)   →  slide title / header block (date, context, etc.)
 - There is no test suite. Verify changes by building (`npm run build`) and running the plugin in Figma.
 - `node_modules` may not be installed. Run `npm install` in `Ash-Notes/` before building.
 - The Figma plugin typings version is pinned to `*` (latest) which can cause breaking changes on fresh installs.
-- The slides branch opens the UI at `{ width: 520, height: 600 }`; other branches use the default size. This is intentional — the notes form needs more space.
+- The slides branch opens the UI at `{ width: 520, height: 720 }`; other branches use the default size. This is intentional — the metadata fields + notes form need more space.
 - `async/await` in `code.ts` requires `"es2017"` in `tsconfig.json`'s `lib` array. Do not remove it.
 - **Never set `slide.fills` on generated slides.** Figma Slides templates use variable-bound fills (e.g. "Color 2" from a theme). Setting `slide.fills` to a literal color overrides those bindings and breaks the template appearance. Call `figma.createSlide()` and leave fills untouched — the template background is inherited automatically.
 - **Text colors must be computed from the slide background, not hardcoded.** Use `textColorsForSlide(slide)` which reads `slide.fills[0]` and computes ITU-R BT.601 luminance to decide dark vs. light text. This handles both light and dark template themes.
-- **Fixed Y positions don't account for text wrapping.** When adjusting `BODY_START_Y` or cover-slide element positions, calculate the worst-case wrapped height: `fontSize × lineHeightMultiplier × maxLines + startY`. The current values were set to handle up to 3-line section titles and 2-line cover titles. If font sizes change, recalculate these positions.
-- **`LINES_MAX` must be consistent with `BODY_START_Y`.** If `BODY_START_Y` increases, reduce `LINES_MAX` so body text doesn't overflow the 1080px slide height. Formula: `LINES_MAX = floor((SLIDE_H - BODY_START_Y - bottomMargin) / lineHeightPx)`.
+- **Pill badge colors also adapt to the background.** `pillStyleForSlide(slide)` returns semi-transparent dark pills for light backgrounds and subtle light pills for dark backgrounds.
+- **Cover slide text is positioned in the right portion (x=540).** This leaves the left ~28% of the slide available for template artwork. On templates without left-side art, the text appears slightly right of center, which still looks clean.
+- **Content body flows across slides with different capacities.** The first content slide has ~16 lines of body space (after title + subtitle), while continuation slides have ~21 lines. `splitBodyIntoSlideChunks()` handles this automatically.
+- **`FIRST_MAX_LINES` / `CONT_MAX_LINES` must be consistent with body Y positions.** If `FIRST_BODY_Y` or `CONT_BODY_Y` change, recalculate: `maxLines = floor((SLIDE_H - bodyY - bottomMargin) / BODY_LINE_H)`.
