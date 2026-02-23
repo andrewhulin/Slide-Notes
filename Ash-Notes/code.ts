@@ -12,7 +12,7 @@ interface ParsedNotes {
   topicTags: string[];     // Cover: pill tags (e.g. ["Social","Personas"])
   contentTitle: string;    // Content slide heading (e.g. "9:45am, 2.20.26")
   contentSubtitle: string; // Content slide subtitle
-  bodyLines: string[];     // Formatted bullet lines (• style) for content
+  bodyLines: string[];     // Raw text lines for content slides
 }
 
 interface ThemeFonts {
@@ -91,46 +91,6 @@ function extractFontsFromDeck(): ThemeFonts {
   return DEFAULT;
 }
 
-// Determine if a slide's background is dark based on its resolved fills
-function isBackgroundDark(slide: SlideNode): boolean {
-  const fills = slide.fills;
-  if (fills === figma.mixed || fills.length === 0) return false;
-  const first = fills[0];
-  if (first.type !== 'SOLID') return false;
-  const { r, g, b } = first.color;
-  return (0.299 * r + 0.587 * g + 0.114 * b) < 0.5;
-}
-
-function textColorsForSlide(slide: SlideNode): { heading: RGB; body: RGB } {
-  if (isBackgroundDark(slide)) {
-    return {
-      heading: { r: 1, g: 1, b: 1 },
-      body: { r: 0.95, g: 0.95, b: 0.95 },
-    };
-  }
-  return {
-    heading: { r: 0.1, g: 0.1, b: 0.1 },
-    body: { r: 0.2, g: 0.2, b: 0.2 },
-  };
-}
-
-// Pill (tag badge) styling that adapts to the slide background
-function pillStyleForSlide(slide: SlideNode): {
-  bg: RGB; bgOpacity: number; text: RGB;
-} {
-  if (isBackgroundDark(slide)) {
-    return {
-      bg: { r: 1, g: 1, b: 1 },
-      bgOpacity: 0.15,
-      text: { r: 0.92, g: 0.92, b: 0.92 },
-    };
-  }
-  return {
-    bg: { r: 0.15, g: 0.12, b: 0.08 },
-    bgOpacity: 0.55,
-    text: { r: 1, g: 0.97, b: 0.92 },
-  };
-}
 
 // ---- Helpers for slide creation ----
 
@@ -161,9 +121,8 @@ function addText(
 }
 
 /**
- * Split an array of formatted body lines into page-sized chunks.
- * The first chunk has fewer available lines (because the first content
- * slide also shows a title + subtitle above the body).
+ * Split an array of body lines into page-sized chunks based on
+ * character count (for line wrapping) and max lines per slide.
  */
 function splitBodyIntoSlideChunks(
   lines: string[],
@@ -292,6 +251,28 @@ if (figma.editorType === 'slides') {
     if (msg.type === 'create-notes-slides') {
       const parsed: ParsedNotes = msg.data;
 
+      // ---- Hardcoded slide layout constants ----
+      const SLIDE_W = 1920;
+      const _SLIDE_H = 1080;
+      const TEXT_X = 140;
+      const TEXT_Y = 140;
+      const TEXT_W = 1640;
+      const TEXT_H = 800;
+      const BG_COLOR: RGB = { r: 246 / 255, g: 240 / 255, b: 222 / 255 }; // #F6F0DE
+      const HEADING_COLOR: RGB = { r: 0.1, g: 0.1, b: 0.1 };
+      const BODY_COLOR: RGB = { r: 0.2, g: 0.2, b: 0.2 };
+
+      // Content slide text flow constants
+      const BODY_SIZE = 26;
+      const BODY_LINE_H = 42;  // 26px × 160% ≈ 42px
+      const CHARS_PER_LINE = 84;
+      const MAX_LINES = Math.floor(TEXT_H / BODY_LINE_H); // 800 / 42 = 19
+
+      // Pill styling (hardcoded for light background)
+      const PILL_BG: RGB = { r: 0.15, g: 0.12, b: 0.08 };
+      const PILL_BG_OPACITY = 0.55;
+      const PILL_TEXT_COLOR: RGB = { r: 1, g: 0.97, b: 0.92 };
+
       // ---- Font loading ----
       const fonts = extractFontsFromDeck();
       const fontsToLoad: FontName[] = [fonts.headingFont];
@@ -303,17 +284,14 @@ if (figma.editorType === 'slides') {
       }
       await Promise.all(fontsToLoad.map(f => figma.loadFontAsync(f)));
 
-      // Try to load an italic variant for the "Interviewed by" line
       const italicFont = await loadItalicVariant(fonts.bodyFont);
 
-      const SLIDE_W = 1920;
-      const SLIDE_H = 1080;
       const allSlides: SlideNode[] = [];
 
       // ==== COVER SLIDE ====
       const coverSlide = figma.createSlide();
+      coverSlide.fills = [{ type: 'SOLID', color: BG_COLOR }];
       allSlides.push(coverSlide);
-      const coverColors = textColorsForSlide(coverSlide);
 
       // -- Cover: topic tag pills (right-aligned row near top) --
       if (parsed.topicTags.length > 0) {
@@ -323,16 +301,14 @@ if (figma.editorType === 'slides') {
         const PILL_RADIUS = 24;
         const PILL_GAP = 16;
         const PILL_Y = 100;
-        const pills = pillStyleForSlide(coverSlide);
 
-        // Create each pill: measure text, build frame, position
         const pillInfos: { frame: FrameNode; w: number }[] = [];
         for (const tag of parsed.topicTags) {
           const textNode = figma.createText();
           textNode.fontName = fonts.bodyFont;
           textNode.characters = tag.toUpperCase();
           textNode.fontSize = PILL_FONT_SIZE;
-          textNode.fills = [{ type: 'SOLID', color: pills.text }];
+          textNode.fills = [{ type: 'SOLID', color: PILL_TEXT_COLOR }];
           textNode.textAutoResize = 'WIDTH_AND_HEIGHT';
 
           const pillW = textNode.width + PILL_PAD_X * 2;
@@ -341,7 +317,7 @@ if (figma.editorType === 'slides') {
           const frame = figma.createFrame();
           frame.resize(pillW, pillH);
           frame.cornerRadius = PILL_RADIUS;
-          frame.fills = [{ type: 'SOLID', color: pills.bg, opacity: pills.bgOpacity }];
+          frame.fills = [{ type: 'SOLID', color: PILL_BG, opacity: PILL_BG_OPACITY }];
           frame.clipsContent = false;
 
           textNode.x = PILL_PAD_X;
@@ -372,7 +348,7 @@ if (figma.editorType === 'slides') {
       if (parsed.date) {
         addText(coverSlide, parsed.date.toUpperCase(), {
           x: COVER_X, y: 440, w: COVER_W,
-          size: 20, font: fonts.bodyFont, color: coverColors.body,
+          size: 20, font: fonts.bodyFont, color: BODY_COLOR,
           autoResize: 'HEIGHT',
         });
       }
@@ -384,7 +360,7 @@ if (figma.editorType === 'slides') {
 
       addText(coverSlide, parsed.title, {
         x: COVER_X, y: 500, w: COVER_W,
-        size: coverTitleSize, font: fonts.headingFont, color: coverColors.heading,
+        size: coverTitleSize, font: fonts.headingFont, color: HEADING_COLOR,
         autoResize: 'HEIGHT',
         lineHeight: { value: 130, unit: 'PERCENT' },
       });
@@ -393,63 +369,27 @@ if (figma.editorType === 'slides') {
       if (parsed.author) {
         addText(coverSlide, 'Interviewed by ' + parsed.author, {
           x: COVER_X, y: 850, w: COVER_W,
-          size: 24, font: italicFont, color: coverColors.body,
+          size: 24, font: italicFont, color: BODY_COLOR,
           autoResize: 'HEIGHT',
         });
       }
 
       // ==== CONTENT SLIDES ====
-      const C_MARGIN = 80;
-      const C_WIDTH = SLIDE_W - C_MARGIN * 2;
-      const C_TITLE_Y = 80;
-      const C_TITLE_SIZE = 48;
-      const C_SUBTITLE_Y = 190;
-      const C_SUBTITLE_SIZE = 28;
-      const FIRST_BODY_Y = 300;
-      const CONT_BODY_Y = 80;
-      const BODY_SIZE = 26;
-      const BODY_LINE_H = 42; // 26px * 160% ≈ 42px
-      const CHARS_PER_LINE = 90;
-      const BOTTOM_MARGIN = 80;
-      const FIRST_MAX_LINES = Math.floor((SLIDE_H - FIRST_BODY_Y - BOTTOM_MARGIN) / BODY_LINE_H);
-      const CONT_MAX_LINES = Math.floor((SLIDE_H - CONT_BODY_Y - BOTTOM_MARGIN) / BODY_LINE_H);
-
-      // Split the formatted body lines across slides
+      // All content slides are identical: one text box at (140, 140) sized 1640×800
       const bodyChunks = splitBodyIntoSlideChunks(
-        parsed.bodyLines, CHARS_PER_LINE, FIRST_MAX_LINES, CONT_MAX_LINES
+        parsed.bodyLines, CHARS_PER_LINE, MAX_LINES, MAX_LINES
       );
 
-      for (let chunkIdx = 0; chunkIdx < bodyChunks.length; chunkIdx++) {
+      for (const chunk of bodyChunks) {
         const slide = figma.createSlide();
+        slide.fills = [{ type: 'SOLID', color: BG_COLOR }];
         allSlides.push(slide);
-        const colors = textColorsForSlide(slide);
 
-        if (chunkIdx === 0) {
-          // First content slide: title + subtitle + body
-          if (parsed.contentTitle) {
-            addText(slide, parsed.contentTitle, {
-              x: C_MARGIN, y: C_TITLE_Y, w: C_WIDTH,
-              size: C_TITLE_SIZE, font: fonts.headingFont, color: colors.heading,
-              autoResize: 'HEIGHT',
-            });
-          }
-
-          if (parsed.contentSubtitle) {
-            addText(slide, parsed.contentSubtitle, {
-              x: C_MARGIN, y: C_SUBTITLE_Y, w: C_WIDTH,
-              size: C_SUBTITLE_SIZE, font: fonts.bodyFont, color: colors.body,
-              autoResize: 'HEIGHT',
-            });
-          }
-        }
-
-        // Body text
-        const bodyY = chunkIdx === 0 ? FIRST_BODY_Y : CONT_BODY_Y;
-        const chunkText = bodyChunks[chunkIdx].join('\n');
+        const chunkText = chunk.join('\n');
         if (chunkText.trim().length > 0) {
           addText(slide, chunkText, {
-            x: C_MARGIN, y: bodyY, w: C_WIDTH,
-            size: BODY_SIZE, font: fonts.bodyFont, color: colors.body,
+            x: TEXT_X, y: TEXT_Y, w: TEXT_W,
+            size: BODY_SIZE, font: fonts.bodyFont, color: BODY_COLOR,
             autoResize: 'HEIGHT',
             lineHeight: { value: 160, unit: 'PERCENT' },
           });
