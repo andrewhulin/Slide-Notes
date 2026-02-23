@@ -37,6 +37,8 @@ To run it, go to **Plugins → Development → Ash-Notes** from any Figma Slides
 - **⌘ Enter** (Mac) or **Ctrl Enter** (Windows) to generate without clicking the button.
 - A live slide count updates as you type.
 
+https://github.com/user-attachments/assets/85625977-b85d-4911-8954-229e03392ae0
+
 ---
 
 ## For developers
